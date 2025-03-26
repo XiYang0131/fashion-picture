@@ -1,13 +1,14 @@
 import React, { useState, useRef } from 'react';
 import '../styles/EditorPage.css';
 
+const API_URL = 'https://luxe-ai-backend.448749018.workers.dev';
+
 const EditorPage = () => {
   const [image, setImage] = useState(null);
   const [processedImage, setProcessedImage] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState('remove-bg');
   const [eraseMode, setEraseMode] = useState(false);
-  const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const handleImageUpload = (e) => {
@@ -28,21 +29,26 @@ const EditorPage = () => {
     setIsProcessing(true);
     
     try {
-      // 这里会调用后端API进行抠像处理
-      const formData = new FormData();
+      // 从 base64 数据 URL 创建 Blob
       const blob = await fetch(image).then(r => r.blob());
-      formData.append('image', blob);
+      const formData = new FormData();
+      formData.append('file', blob, 'image.png');
       
-      const response = await fetch('/api/remove-background', {
+      // 调用后端 API
+      const response = await fetch(`${API_URL}/api/remove-background`, {
         method: 'POST',
         body: formData,
       });
       
       if (response.ok) {
         const data = await response.json();
-        setProcessedImage(data.processedImage);
+        if (data.success) {
+          setProcessedImage(data.processedImage);
+        } else {
+          console.error('处理失败:', data.message);
+        }
       } else {
-        console.error('处理失败');
+        console.error('API 请求失败');
       }
     } catch (error) {
       console.error('处理出错:', error);
@@ -51,15 +57,73 @@ const EditorPage = () => {
     }
   };
 
+  const createMaskFromEraseMode = async () => {
+    // 创建一个简单的黑色掩码图像（在实际应用中，这应该基于用户的擦除操作）
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 获取原始图像的尺寸
+    const img = new Image();
+    img.src = image;
+    await new Promise(resolve => {
+      img.onload = resolve;
+    });
+    
+    canvas.width = img.width;
+    canvas.height = img.height;
+    
+    // 创建黑色背景（表示不擦除的区域）
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // 在中心位置绘制一个白色圆形（表示要擦除的区域）
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2, 50, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 将 canvas 转换为 blob
+    return new Promise(resolve => {
+      canvas.toBlob(resolve, 'image/png');
+    });
+  };
+
   const handleAIRemove = async () => {
     if (!image) return;
     setIsProcessing(true);
     
-    // 模拟AI消除处理
-    setTimeout(() => {
-      setProcessedImage(image); // 实际应用中这里会是处理后的图片
+    try {
+      // 从 base64 数据 URL 创建 Blob
+      const blob = await fetch(image).then(r => r.blob());
+      
+      // 创建掩码数据 (在实际应用中，这应该是用户绘制的掩码)
+      const maskBlob = await createMaskFromEraseMode();
+      
+      const formData = new FormData();
+      formData.append('file', blob, 'image.png');
+      formData.append('mask', maskBlob, 'mask.png');
+      
+      // 调用后端 API
+      const response = await fetch(`${API_URL}/api/remove-object`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setProcessedImage(data.processedImage);
+        } else {
+          console.error('处理失败:', data.message);
+        }
+      } else {
+        console.error('API 请求失败');
+      }
+    } catch (error) {
+      console.error('处理出错:', error);
+    } finally {
       setIsProcessing(false);
-    }, 2000);
+    }
   };
 
   const handleDownload = () => {

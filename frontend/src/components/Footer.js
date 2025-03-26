@@ -21,9 +21,9 @@ const Footer = () => {
           <div className="footer-links-column">
             <h4>关于我们</h4>
             <ul>
-              <li><a href="#">公司介绍</a></li>
-              <li><a href="#">联系我们</a></li>
-              <li><a href="#">隐私政策</a></li>
+              <li><a href="/about">公司介绍</a></li>
+              <li><a href="/contact">联系我们</a></li>
+              <li><a href="/privacy">隐私政策</a></li>
             </ul>
           </div>
         </div>
